@@ -1,0 +1,48 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("PRISMA_DATABASE_URL")
+}
+
+model Competition {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean  @default(false)
+  isOpen      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  contestants Contestant[]
+
+  @@map("competitions")
+}
+
+model Contestant {
+  id            String      @id @default(cuid())
+  firstName     String
+  lastName      String
+  karateSchool  String
+  beltColor     String
+  age           Int
+  email         String      @unique
+  kata          Boolean     @default(false)
+  kumite        Boolean     @default(false)
+  paid          Boolean     @default(false)
+  competitionId String
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("contestants")
+}
