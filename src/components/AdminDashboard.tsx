@@ -28,6 +28,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Filter, X } from "lucide-react";
 import Image from "next/image";
 
 interface Competition {
@@ -64,6 +66,16 @@ export function AdminDashboard() {
   const [selectedCompetitionId, setSelectedCompetitionId] =
     useState<string>("");
   const [loading, setLoading] = useState(true);
+
+  // Filter states
+  const [filters, setFilters] = useState({
+    beltColors: [] as string[],
+    ageMin: "",
+    ageMax: "",
+    type: "all" as "all" | "kata" | "kumite" | "both",
+    paymentStatus: "all" as "all" | "paid" | "pending",
+  });
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -123,10 +135,87 @@ export function AdminDashboard() {
   };
 
   const filteredContestants = selectedCompetitionId
-    ? contestants.filter(
-        (contestant) => contestant.competition.id === selectedCompetitionId
-      )
+    ? contestants
+        .filter(
+          (contestant) => contestant.competition.id === selectedCompetitionId
+        )
+        .filter((contestant) => {
+          // Belt color filter
+          if (filters.beltColors.length > 0) {
+            return filters.beltColors.includes(contestant.beltColor);
+          }
+          return true;
+        })
+        .filter((contestant) => {
+          // Age range filter
+          const age = contestant.age;
+          const minAge = filters.ageMin ? parseInt(filters.ageMin) : 0;
+          const maxAge = filters.ageMax ? parseInt(filters.ageMax) : 100;
+          return age >= minAge && age <= maxAge;
+        })
+        .filter((contestant) => {
+          // Type filter
+          switch (filters.type) {
+            case "kata":
+              return contestant.kata;
+            case "kumite":
+              return contestant.kumite;
+            case "both":
+              return contestant.kata && contestant.kumite;
+            default:
+              return true;
+          }
+        })
+        .filter((contestant) => {
+          // Payment status filter
+          switch (filters.paymentStatus) {
+            case "paid":
+              return contestant.paid;
+            case "pending":
+              return !contestant.paid;
+            default:
+              return true;
+          }
+        })
     : contestants;
+
+  const clearFilters = () => {
+    setFilters({
+      beltColors: [],
+      ageMin: "",
+      ageMax: "",
+      type: "all",
+      paymentStatus: "all",
+    });
+  };
+
+  const updateBeltColorFilter = (beltColor: string, checked: boolean) => {
+    setFilters((prev) => ({
+      ...prev,
+      beltColors: checked
+        ? [...prev.beltColors, beltColor]
+        : prev.beltColors.filter((color) => color !== beltColor),
+    }));
+  };
+
+  const hasActiveFilters = () => {
+    return (
+      filters.beltColors.length > 0 ||
+      filters.ageMin !== "" ||
+      filters.ageMax !== "" ||
+      filters.type !== "all" ||
+      filters.paymentStatus !== "all"
+    );
+  };
+
+  // Get unique belt colors from contestants
+  const availableBeltColors = Array.from(
+    new Set(
+      contestants
+        .filter((c) => c.competition.id === selectedCompetitionId)
+        .map((c) => c.beltColor)
+    )
+  ).sort();
 
   const toggleCompetitionStatus = async (
     id: string,
@@ -305,6 +394,37 @@ export function AdminDashboard() {
                     ))}
                   </SelectContent>
                 </Select>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowFilters(true)}
+                  className="hover:cursor-pointer"
+                >
+                  <Filter className="w-4 h-4 mr-2" />
+                  Filters
+                  {hasActiveFilters() && (
+                    <Badge
+                      variant="secondary"
+                      className="ml-2 px-1 py-0 text-xs"
+                    >
+                      {[
+                        filters.beltColors.length > 0 ? 1 : 0,
+                        filters.ageMin || filters.ageMax ? 1 : 0,
+                        filters.type !== "all" ? 1 : 0,
+                        filters.paymentStatus !== "all" ? 1 : 0,
+                      ].reduce((a, b) => a + b, 0)}
+                    </Badge>
+                  )}
+                </Button>
+                {hasActiveFilters() && (
+                  <Button
+                    variant="ghost"
+                    onClick={clearFilters}
+                    className="hover:cursor-pointer"
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Clear
+                  </Button>
+                )}
               </div>
             </div>
           </CardHeader>
@@ -356,11 +476,159 @@ export function AdminDashboard() {
             </Table>
             {filteredContestants.length === 0 && (
               <div className="text-center py-8 text-gray-500">
-                No contestants registered for this competition yet.
+                {hasActiveFilters()
+                  ? "No contestants match the current filters."
+                  : "No contestants registered for this competition yet."}
               </div>
             )}
           </CardContent>
         </Card>
+
+        {/* Filter Modal */}
+        {showFilters && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Filter Contestants</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowFilters(false)}
+                  className="hover:cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Belt Color Filter */}
+                <div>
+                  <Label className="text-sm font-medium">Belt Colors</Label>
+                  <div className="mt-2 space-y-2 max-h-32 overflow-y-auto">
+                    {availableBeltColors.map((beltColor) => (
+                      <div
+                        key={beltColor}
+                        className="flex items-center space-x-2"
+                      >
+                        <Checkbox
+                          id={`belt-${beltColor}`}
+                          checked={filters.beltColors.includes(beltColor)}
+                          onCheckedChange={(checked) =>
+                            updateBeltColorFilter(beltColor, checked as boolean)
+                          }
+                        />
+                        <Label
+                          htmlFor={`belt-${beltColor}`}
+                          className="text-sm"
+                        >
+                          {beltColor}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Age Range Filter */}
+                <div>
+                  <Label className="text-sm font-medium">Age Range</Label>
+                  <div className="mt-2 flex gap-2">
+                    <div className="flex-1">
+                      <Input
+                        type="number"
+                        placeholder="Min age"
+                        value={filters.ageMin}
+                        onChange={(e) =>
+                          setFilters((prev) => ({
+                            ...prev,
+                            ageMin: e.target.value,
+                          }))
+                        }
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <Input
+                        type="number"
+                        placeholder="Max age"
+                        value={filters.ageMax}
+                        onChange={(e) =>
+                          setFilters((prev) => ({
+                            ...prev,
+                            ageMax: e.target.value,
+                          }))
+                        }
+                        className="text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Type Filter */}
+                <div>
+                  <Label className="text-sm font-medium">Type</Label>
+                  <Select
+                    value={filters.type}
+                    onValueChange={(value) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        type: value as typeof prev.type,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="mt-2">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="kata">Kata</SelectItem>
+                      <SelectItem value="kumite">Kumite</SelectItem>
+                      <SelectItem value="both">Both Kata & Kumite</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Payment Status Filter */}
+                <div>
+                  <Label className="text-sm font-medium">Payment Status</Label>
+                  <Select
+                    value={filters.paymentStatus}
+                    onValueChange={(value) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        paymentStatus: value as typeof prev.paymentStatus,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="mt-2">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="paid">Paid</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex gap-2 mt-6">
+                <Button
+                  onClick={clearFilters}
+                  variant="outline"
+                  className="flex-1 hover:cursor-pointer"
+                >
+                  Clear All
+                </Button>
+                <Button
+                  onClick={() => setShowFilters(false)}
+                  className="flex-1 hover:cursor-pointer"
+                >
+                  Apply Filters
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
