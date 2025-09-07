@@ -21,6 +21,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import Image from "next/image";
 
 interface Competition {
@@ -54,6 +61,8 @@ export function AdminDashboard() {
     name: "",
     description: "",
   });
+  const [selectedCompetitionId, setSelectedCompetitionId] =
+    useState<string>("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -70,6 +79,17 @@ export function AdminDashboard() {
       if (competitionsRes.ok) {
         const competitionsData = await competitionsRes.json();
         setCompetitions(competitionsData);
+
+        // Set default to active competition
+        const activeCompetition = competitionsData.find(
+          (c: Competition) => c.isActive
+        );
+        if (activeCompetition) {
+          setSelectedCompetitionId(activeCompetition.id);
+        } else if (competitionsData.length > 0) {
+          // If no active, default to first competition
+          setSelectedCompetitionId(competitionsData[0].id);
+        }
       }
 
       if (contestantsRes.ok) {
@@ -101,6 +121,12 @@ export function AdminDashboard() {
       console.error("Error creating competition:", error);
     }
   };
+
+  const filteredContestants = selectedCompetitionId
+    ? contestants.filter(
+        (contestant) => contestant.competition.id === selectedCompetitionId
+      )
+    : contestants;
 
   const toggleCompetitionStatus = async (
     id: string,
@@ -192,7 +218,10 @@ export function AdminDashboard() {
                   placeholder="Annual karate competition"
                 />
               </div>
-              <Button onClick={createCompetition} className="w-full">
+              <Button
+                onClick={createCompetition}
+                className="w-full hover:cursor-pointer"
+              >
                 Create Competition
               </Button>
             </CardContent>
@@ -216,6 +245,7 @@ export function AdminDashboard() {
                       <div className="flex items-center space-x-4">
                         <div className="flex items-center space-x-2">
                           <Switch
+                            className="hover:cursor-pointer"
                             checked={competition.isActive}
                             onCheckedChange={() =>
                               toggleCompetitionStatus(
@@ -228,6 +258,7 @@ export function AdminDashboard() {
                         </div>
                         <div className="flex items-center space-x-2">
                           <Switch
+                            className="hover:cursor-pointer"
                             checked={competition.isOpen}
                             onCheckedChange={() =>
                               toggleCompetitionStatus(competition.id, "isOpen")
@@ -247,10 +278,35 @@ export function AdminDashboard() {
         {/* Contestants Table */}
         <Card className="mt-8">
           <CardHeader>
-            <CardTitle>Registered Contestants</CardTitle>
-            <CardDescription>
-              View all registered contestants across all competitions
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Registered Contestants</CardTitle>
+                <CardDescription>
+                  View registered contestants for selected competition
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-4">
+                <Label htmlFor="competition-select">Competition:</Label>
+                <Select
+                  value={selectedCompetitionId}
+                  onValueChange={setSelectedCompetitionId}
+                >
+                  <SelectTrigger
+                    className="w-[250px] hover:cursor-pointer"
+                    id="competition-select"
+                  >
+                    <SelectValue placeholder="Select a competition" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {competitions.map((competition) => (
+                      <SelectItem key={competition.id} value={competition.id}>
+                        {competition.name} {competition.isActive && "(Active)"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <Table>
@@ -261,13 +317,12 @@ export function AdminDashboard() {
                   <TableHead>Belt</TableHead>
                   <TableHead>Age</TableHead>
                   <TableHead>Email</TableHead>
-                  <TableHead>Competition</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Payment</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {contestants.map((contestant) => (
+                {filteredContestants.map((contestant) => (
                   <TableRow key={contestant.id}>
                     <TableCell>
                       {contestant.firstName} {contestant.lastName}
@@ -276,7 +331,6 @@ export function AdminDashboard() {
                     <TableCell>{contestant.beltColor}</TableCell>
                     <TableCell>{contestant.age}</TableCell>
                     <TableCell>{contestant.email}</TableCell>
-                    <TableCell>{contestant.competition.name}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         {contestant.kata && (
@@ -289,7 +343,9 @@ export function AdminDashboard() {
                     </TableCell>
                     <TableCell>
                       <Badge
-                        variant={contestant.paid ? "default" : "destructive"}
+                        className={
+                          contestant.paid ? "bg-green-700" : "bg-yellow-700"
+                        }
                       >
                         {contestant.paid ? "Paid" : "Pending"}
                       </Badge>
@@ -298,6 +354,11 @@ export function AdminDashboard() {
                 ))}
               </TableBody>
             </Table>
+            {filteredContestants.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                No contestants registered for this competition yet.
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
